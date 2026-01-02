@@ -1,32 +1,29 @@
 @echo off
 setlocal enabledelayedexpansion
 
-::: Version 2.26.12.2025 Test realease
+::: Version 3.2.1.2026 Test release
 ::: (C) 2025 by Borizz.K (borizz.k@gmail.com) - https://github.com/BorizzK
 
 :init
 
-	echo Export Maintenance plans from MS SQL Servers.
+	echo %DATE%,%TIME:~0,-3%: Export Maintenance plans from MS SQL Servers.
 	::: List of servers.
-	::set "SQL_SERVERS=SQLSERVER1;SQLSERVER2;"
-	set "SQL_SERVERS=SERV-1C8CA0;SERV-1C82CA1;SERV-1C82CA2;"
-	::set "SQL_SERVERS=SERV-1C8CA0;"
+	set "SQL_SERVERS=SQLSERVER1;SQLSERVER2;"
+	::: If a plan name is defined in OnePlan, only the plan with that name will be processed.
 	set "OnePlan=%~1"
-	set "OnePlan="
-	::set "OnePlan=EveryDay_Backup_Template"
 
 	sqlcmd -? >nul 2>&1
 	if %errorlevel% == 9009 (
-		echo ERROR: Sqlcmd is missing. Terminating.
+		echo %DATE%,%TIME:~0,-3%: ERROR: Sqlcmd is missing. Terminating.
 		exit /b 1
 	)
 	bcp -? -? >nul 2>&1
 	if %errorlevel% == 9009 (
-		echo ERROR: Bcp is missing. Terminating.
+		echo %DATE%,%TIME:~0,-3%: ERROR: Bcp is missing. Terminating.
 		exit /b 2
 	)
 	net session >nul 2>&1 || (
-		echo ERROR: Administrator or system rights required. Terminating.
+		echo %DATE%,%TIME:~0,-3%: ERROR: Administrator or system rights required. Terminating.
 		exit /b 3
 	)
 
@@ -51,11 +48,26 @@ setlocal enabledelayedexpansion
 	set "P_SQL_SERVER="
 	set /a "stoken=0"
 
+	if not defined TEMP set "TEMP=%SystemRoot%\Temp"
+	if not defined TMP  set "TMP=%SystemRoot%\Temp"
+	if not exist "%TEMP%\" (
+		echo "%TEMP%" | find /i ":\" >nul 2>&1 && md "%TEMP%\" >nul 2>&1
+	)
+	if not exist "%TMP%\" (
+		echo "%TMP%" | find /i ":\" >nul 2>&1 && md "%TMP%\" >nul 2>&1
+	)
+	set "PSRND=%RANDOM%"
+	set "PS_TEMP=%TEMP%\%PSRND%"
+	md "%PS_TEMP%" >nul 2>&1
+
 :begin
 
-	echo Working dir: '%RunPath%'
-	echo Root export dir: '%EXPORT_DIR%'
-	echo All .dtsx files will be saved to: '%EXPORT_DIR%'
+
+	echo %DATE%,%TIME:~0,-3%: Input params: '%~1'
+	echo %DATE%,%TIME:~0,-3%: Working dir: '%RunPath%'
+	echo %DATE%,%TIME:~0,-3%: Root export dir: '%EXPORT_DIR%'
+	echo %DATE%,%TIME:~0,-3%: PS temp dir: '%PS_TEMP%'
+	echo %DATE%,%TIME:~0,-3%: All .dtsx files will be saved to: '%EXPORT_DIR%'
 
 	:procservers
 		set /a "stoken+=1"
@@ -64,10 +76,10 @@ setlocal enabledelayedexpansion
 		for /f "tokens=%stoken% delims=;" %%i in ("%SQL_SERVERS%") do set "P_SQL_SERVER=%%~i"
 		if defined P_SQL_SERVER (
 			set "SQL_SERVER=!P_SQL_SERVER!"
-			echo Try to processing server %stoken%: '!SQL_SERVER!'
+			echo %DATE%,%TIME:~0,-3%: Try to processing server %stoken%: '!SQL_SERVER!'
 			if defined PG_SQL_SERVERS (
 				echo "!PG_SQL_SERVERS!" | find /i "!P_SQL_SERVER!;" >nul 2>&1 && (
-					echo Processing server %stoken%: '!P_SQL_SERVER!' already processed.
+					echo %DATE%,%TIME:~0,-3%: Processing server %stoken%: '!P_SQL_SERVER!' already processed.
 					goto :procservers
 				)
 			)
@@ -76,38 +88,40 @@ setlocal enabledelayedexpansion
 			) else (
 				set "PG_SQL_SERVERS=!SQL_SERVER!;"
 			)
+			echo %DATE%,%TIME:~0,-3%: Check connection to server %stoken%: '!SQL_SERVER!'
 			ping -n 2 !SQL_SERVER! >nul 2>&1
-			sqlcmd -S !SQL_SERVER! -E -l 1 -Q "SELECT 1" >nul 2>&1 && (
-				echo Processing server %stoken%: '!SQL_SERVER!'
+			sqlcmd -S !SQL_SERVER! -E -l 2 -t 2 -Q "SELECT 1" >nul 2>&1 && (
+				echo %DATE%,%TIME:~0,-3%: Processing server %stoken%: '!SQL_SERVER!'
 				call :exportplans "!SQL_SERVER!"
 				echo.>nul
 			) || (
-				echo Processing server %stoken%: '!SQL_SERVER!': the server is unavailable. Skip.
+				echo %DATE%,%TIME:~0,-3%: '!SQL_SERVER!': the server is unavailable. Skip.
 			)
-			ping -n 2 127.0.0.1 >nul 2>&1
 		) else (
 			goto :procserversend
 		)
 		goto :procservers
 	:procserversend
 
-	echo Servers processed: '%PG_SQL_SERVERS%'
-	echo DTSX files processed: '%DTSXProcessed%'
+	echo %DATE%,%TIME:~0,-3%: Servers processed: '%PG_SQL_SERVERS%'
+	echo %DATE%,%TIME:~0,-3%: DTSX files processed: '%DTSXProcessed%'
 
 :end
 goto :exit
 
 :exportplans
 
+	echo %DATE%,%TIME:~0,-3%: Export plans from: '%SQL_SERVER%', to: '%EXPORT_DIR%\%SQL_SERVER%'
+
 	if not exist "%EXPORT_DIR%\%SQL_SERVER%" mkdir "%EXPORT_DIR%\%SQL_SERVER%" >nul 2>&1
 	if not exist "%EXPORT_DIR%\%SQL_SERVER%" (
-		echo ERROR: '%EXPORT_DIR%\%SQL_SERVER%' not accessible.
+		echo %DATE%,%TIME:~0,-3%: ERROR: '%EXPORT_DIR%\%SQL_SERVER%' not accessible.
 		goto :exportplansend
 	)
 
 	set "ServerSysOperatorsProcessed=false"
 
-	echo Checking MsDtsServer [SSIS] on %SQL_SERVER%...
+	echo %DATE%,%TIME:~0,-3%: Checking MsDtsServer [SSIS] on %SQL_SERVER%...
 	set "MsDtsServer="
 	set "UseMsDtsServer=false"
 	set "experrlvl=8"
@@ -123,9 +137,9 @@ goto :exit
 	)
 	dtutil /? 2>nul | find "Server" >nul 2>&1 || set "UseMsDtsServer=false"
 	if /i "%UseMsDtsServer%" == "true" (
-		echo Using dtutil [SSIS] [dtutil:%UseMsDtsServer%]...
+		echo %DATE%,%TIME:~0,-3%: Using dtutil [SSIS] [dtutil:%UseMsDtsServer%]...
 	) else (
-		echo Using sqlcmd/bcp [SQL] [dtutil:%UseMsDtsServer%]...
+		echo %DATE%,%TIME:~0,-3%: Using sqlcmd/bcp [SQL] [dtutil:%UseMsDtsServer%]...
 	)
 
 	for /f "usebackq tokens=*" %%i in (`sqlcmd -S %SQL_SERVER% -E -d msdb -h -1 -Q "SET NOCOUNT ON; SELECT name FROM dbo.sysssispackages WHERE packagetype=6"`) do (
@@ -136,14 +150,14 @@ goto :exit
 			set "experrlvl=9"
 			if defined OnePlan (
 				if /i "%OnePlan%" == "!PLAN_NAME!" (
-					echo Only One Plan defined for export: '%OnePlan%'
+					echo %DATE%,%TIME:~0,-3%: Only One Plan defined for export: '%OnePlan%'
 					call :exportplan
 				)
 			) else (
 				call :exportplan
 			)
 		) else (
-			echo ERROR: 'PLAN_NAME'
+			echo %DATE%,%TIME:~0,-3%: ERROR: 'PLAN_NAME'
 		)
 	)
 
@@ -152,29 +166,113 @@ exit /b %experrlvl%
 goto :eof
 
 :exportplan
-	echo Processing Plan '!PLAN_NAME!' from server '%SQL_SERVER%'
+	echo %DATE%,%TIME:~0,-3%: Processing Plan: '!PLAN_NAME!' from server '%SQL_SERVER%' Begin.
 	if /i "%UseMsDtsServer%" == "true" (
-		echo Exporting: dtutil: %SQL_SERVER%: '!PLAN_NAME!' to '%EXPORT_DIR%\%SQL_SERVER%\!PLAN_NAME!.dtsx'
-		dtutil /SQL "\Maintenance Plans\!PLAN_NAME!" /SourceServer "%SQL_SERVER%" /ENCRYPT FILE;"%EXPORT_DIR%\%SQL_SERVER%\!PLAN_NAME!.dtsx";1 /QUIET >nul 2>&1
+		echo %DATE%,%TIME:~0,-3%: Exporting: dtutil: %SQL_SERVER%: '!PLAN_NAME!' to '%EXPORT_DIR%\%SQL_SERVER%\!PLAN_NAME!.dtsx'
+		dtutil /SQL "\Maintenance Plans\!PLAN_NAME!" /SourceServer "%SQL_SERVER%" /ENCRYPT FILE;"%EXPORT_DIR%\%SQL_SERVER%\!PLAN_NAME!.dtsx";1 /QUIET >"%EXPORT_DIR%\%SQL_SERVER%\dtutil_export_!PLAN_NAME!.log" 2>&1
 		set "experrlvl=!errorlevel!"
+		echo %DATE%,%TIME:~0,-3%: Export Plan Result code: Dtutil: '!experrlvl!'
 	) else (
-		echo Exporting: bcp: %SQL_SERVER%: '!PLAN_NAME!' to '%EXPORT_DIR%\%SQL_SERVER%\!PLAN_NAME!.dtsx'
-		bcp "SELECT packagedata FROM msdb.dbo.sysssispackages WHERE name='!PLAN_NAME!'" queryout "%EXPORT_DIR%\%SQL_SERVER%\!PLAN_NAME!_raw.dtsx" -T -S %SQL_SERVER% -n >nul 2>&1
-		powershell -Command ^
-			"$bytes=[System.IO.File]::ReadAllBytes('%EXPORT_DIR%\%SQL_SERVER%\!PLAN_NAME!_raw.dtsx');" ^
-			"$xmlStart=[System.Text.Encoding]::UTF8.GetString($bytes).IndexOf('<?xml');" ^
-			"[System.IO.File]::WriteAllBytes('%EXPORT_DIR%\%SQL_SERVER%\!PLAN_NAME!.dtsx',$bytes[$xmlStart..($bytes.Length-1)])"
+		echo %DATE%,%TIME:~0,-3%: Exporting: bcp: %SQL_SERVER%: '!PLAN_NAME!' to '%EXPORT_DIR%\%SQL_SERVER%\!PLAN_NAME!.dtsx'
+		bcp "SELECT packagedata FROM msdb.dbo.sysssispackages WHERE name='!PLAN_NAME!'" queryout "%EXPORT_DIR%\%SQL_SERVER%\!PLAN_NAME!_raw.dtsx" -T -S %SQL_SERVER% -n >"%EXPORT_DIR%\%SQL_SERVER%\bcp_export_!PLAN_NAME!.log" 2>&1
 		set "experrlvl=!errorlevel!"
-		del /f /q "%EXPORT_DIR%\%SQL_SERVER%\!PLAN_NAME!_raw.dtsx" >nul 2>&1
-	)
-	echo Explort Plan Result code: !experrlvl!
-	if "!experrlvl!" == "0" set /a "DTSXProcessed+=1"
+		echo %DATE%,%TIME:~0,-3%: Converting: powershell: System.Text.Encoding: '%EXPORT_DIR%\%SQL_SERVER%\!PLAN_NAME!_raw.dtsx' -^> '%EXPORT_DIR%\%SQL_SERVER%\!PLAN_NAME!.dtsx'
 
-	::: Under Construction
+			if exist "%RunPath%\0" (
+				echo %DATE%,%TIME:~0,-3%: WARNING: 1:'%RunPath%\0' Detected.
+				rem rmdir /s /q "%RunPath%\0" >nul 2>&1
+			)
+			
+			call :pwencodingrawdtsx
+			set "pwexperrlvl=%errorlevel%"
+			rem del /f /q "%EXPORT_DIR%\%SQL_SERVER%\!PLAN_NAME!_raw.dtsx" >nul 2>&1
+
+			if exist "%RunPath%\0" (
+				echo %DATE%,%TIME:~0,-3%: WARNING: 2:'%RunPath%\0' Detected.
+				rem rmdir /s /q "%RunPath%\0" >nul 2>&1
+			)
+
+
+		echo %DATE%,%TIME:~0,-3%: Export Plan Result code: BCP: '!experrlvl!', PS: '!pwexperrlvl!'
+	)
+	if "%experrlvl%" == "0" set /a "DTSXProcessed+=1"
+
 	call :ExportJobs
-	
+	echo %DATE%,%TIME:~0,-3%: Processing Plan: '!PLAN_NAME!' from server '%SQL_SERVER%' End.
+
 :exportplanend
 goto :eof
+
+::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+:pwencodingrawdtsx
+	
+	set "pwerrlvl=0"
+	
+	set "$CCD=%CD%" >nul 2>&1
+	cd "%PS_TEMP%" >nul 2>&1
+	cd /d "%PS_TEMP%" >nul 2>&1
+
+	echo %DATE%,%TIME:~0,-3%: Execution PS command. Working dir: '%CD%'
+
+	powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+		"$ErrorActionPreference='Stop';" ^
+		"$timestamp = Get-Date -Format 'dd.MM.yyyy,HH:mm:ss';" ^
+		"Write-Host ($timestamp + ': [INFO] Preparing to convert a raw xml file: raw.dtsx');" ^
+		"if(-not $env:EXPORT_DIR -or -not $env:SQL_SERVER -or -not $env:PLAN_NAME) {" ^
+		"    throw ($timestamp + ': [ERROR] Missing env vars: EXPORT_DIR, SQL_SERVER, PLAN_NAME');" ^
+		"}" ^
+		"$rawFile = Join-Path -Path $env:EXPORT_DIR -ChildPath $env:SQL_SERVER | Join-Path -ChildPath ($env:PLAN_NAME + '_raw.dtsx');" ^
+		"$outFile = Join-Path -Path $env:EXPORT_DIR -ChildPath $env:SQL_SERVER | Join-Path -ChildPath ($env:PLAN_NAME + '.dtsx');" ^
+		"if($rawFile -match '(^|\\|/)0(\\|/)') {" ^
+		"    throw ($timestamp + ': [ERROR] Suspicious rawFile path (contains ''0''): ' + $rawFile);" ^
+		"}" ^
+		"if($outFile -match '(^|\\|/)0(\\|/)') {" ^
+		"    throw ($timestamp + ': [ERROR] Suspicious outFile path (contains ''0''): ' + $outFile);" ^
+		"}" ^
+		"if(-not (Test-Path $rawFile -PathType Leaf)) {" ^
+		"    throw ($timestamp + ': [ERROR] Input file not found: ' + $rawFile);" ^
+		"}" ^
+		"if((Get-Item $rawFile).Length -eq 0) {" ^
+		"    throw ($timestamp + ': [ERROR] Input file is empty: ' + $rawFile);" ^
+		"}" ^
+		"$outDir = Split-Path $outFile -Parent;" ^
+		"if(-not (Test-Path $outDir -PathType Container)) {" ^
+		"    throw ($timestamp + ': [ERROR] Output directory does not exist: ' + $outDir);" ^
+		"}" ^
+		"$timestamp = Get-Date -Format 'dd.MM.yyyy,HH:mm:ss';" ^
+		"Write-Host ($timestamp + ': [INFO] Processing: ' + $rawFile);" ^
+		"try {" ^
+		"    $bytes = [System.IO.File]::ReadAllBytes($rawFile);" ^
+		"    if($bytes.Length -ge 2 -and $bytes[0]-eq 0xFF -and $bytes[1]-eq 0xFE) {" ^
+		"        $text = [System.Text.Encoding]::Unicode.GetString($bytes);" ^
+		"    } elseif($bytes.Length -ge 2 -and $bytes[0]-eq 0xFE -and $bytes[1]-eq 0xFF) {" ^
+		"        $text = [System.Text.Encoding]::BigEndianUnicode.GetString($bytes);" ^
+		"    } else {" ^
+		"        $text = [System.Text.Encoding]::UTF8.GetString($bytes);" ^
+		"    }" ^
+		"    $match = [Regex]::Match($text, '<\?xml');" ^
+		"    if(-not $match.Success) {" ^
+		"        throw ($timestamp + ': [ERROR] XML declaration not found in: ' + $rawFile);" ^
+		"    }" ^
+		"    $outText = $text.Substring($match.Index);" ^
+		"    [System.IO.File]::WriteAllText($outFile, $outText, [System.Text.Encoding]::UTF8);" ^
+		"    $timestamp = Get-Date -Format 'dd.MM.yyyy,HH:mm:ss';" ^
+		"    Write-Host ($timestamp + ': [SUCCESS] Processed: ' + $outFile);" ^
+		"} catch {" ^
+		"    $timestamp = Get-Date -Format 'dd.MM.yyyy,HH:mm:ss';" ^
+		"    throw ($timestamp + ': [ERROR] Operation failed: ' + $_.Exception.Message);" ^
+		"}"
+
+	set "pwerrlvl=%errorlevel%"
+	
+	cd "%$CCD%" >nul 2>&1
+	cd /d "%$CCD%" >nul 2>&1
+
+:pwencodingrawdtsxend
+exit /b %pwerrlvl%
+
+::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 	:GetPlanSid
 	:GetPlanSidEnd
@@ -210,18 +308,25 @@ goto :eof
 		set "subplansdescrs="
 		set "subplanssids="
 		set "sLine="
-		echo GetSubPlans: Plan: '%planname%', DTSX: '%dtsxname%'
-		for /f "tokens=2 delims=<>" %%i in ('type "%dtsxname%" 2^>nul ^| find /i "DTS:Executable DTS:refId=" ^| find /i "Package\" ^| find /i "DTS:CreationName=" ^| find /i "DTS:Description=" ^| find /i "DTS:Disabled=" ^| find /i "DTS:DTSID=" ^| find /i "DTS:ExecutableType=" ^| find /i "DTS:FailParentOnFailure=" ^| find /i "DTS:LocaleID=" ^| find /i "DTS:ObjectName="') do (
-			set "sLine=%%~i"
-			if defined sLine call :GetSubplan !sLine!
-		)
+		echo %DATE%,%TIME:~0,-3%: Get SubPlans: Plan: '%planname%', DTSX: '%dtsxname%'
 
-		echo Plan: '%planname%': Subplans: '%subplans%': Sids: '%subplanssids%', Descrs: '%subplansdescrs%'
+		set /a "sbnum=0"
+		for /f "tokens=2 delims=<>" %%i in ('findstr /r /c:"<DTS:Executable .*DTS:refId=.*DTS:CreationName=.*DTS:Description=.*DTS:Disabled=.*DTS:DTSID=.*DTS:ExecutableType=.*DTS:FailParentOnFailure=.*DTS:LocaleID=.*DTS:ObjectName=.*>" "%dtsxname%"') do (
+			set "sLine=%%~i" >nul 2>&1
+			set /a "sbnum=!sbnum!+1"
+			if defined sLine (
+				echo %DATE%,%TIME:~0,-3%: Get SubPlans: Processing subplan [!sbnum!] 
+				call :GetSubplan !sLine!
+			)
+		)
+		:Proc_sLine_end
+		echo %DATE%,%TIME:~0,-3%: Plan: '%planname%': Subplans: '%subplans%': Sids: '%subplanssids%', Descrs: '%subplansdescrs%'
 
 	:GetSubPlansEnd
 	goto :eof
 	
 	:GetSubplan
+
 		set "tmpline=%*"
 		set "tmpline=%tmpline:" ="¶%¶"
 		set "subplanpkg="
@@ -250,6 +355,8 @@ goto :eof
 		::echo %mainstring% >mainstring.txt
 		::goto :eof
 		
+		echo %DATE%,%TIME:~0,-3%: Get Subplan variables.
+
 		:parse_subplan_line
 			set "a="
 			set /a "token+=1"
@@ -272,11 +379,12 @@ goto :eof
 			)
 			goto :parse_subplan_line
 		:parse_subplan_line_end
-		
+
+		echo %DATE%,%TIME:~0,-3%: Get Subplan variables end.
+
 		if defined subplanpkg if defined subplandescr if defined subplansid if defined subplan (
 			if /i "%subplanpkg:package\=%" == "%subplan%" (
-				echo GetSubplan: '%subplanpkg%':'%subplandescr%':'%subplansid%':'%subplan%'
-
+				echo %DATE%,%TIME:~0,-3%: Get Subplan: '%subplanpkg%':'%subplandescr%':'%subplansid%':'%subplan%'
 				if defined subplans (
 					set "subplans=!subplans!%subplan%;"
 					set "subplansdescrs=!subplansdescrs!%subplandescr%;"
@@ -287,7 +395,7 @@ goto :eof
 					set "subplanssids=%subplansid%;"
 				)
 			) else (
-				echo WARNING: The subplan '%subplan%' may contain errors. Check plan '%planname%' and subplan configuration in SQL server.
+				echo %DATE%,%TIME:~0,-3%: WARNING: The subplan '%subplan%' may contain errors. Check plan '%planname%' and subplan configuration in SQL server.
 			)
 		)
 	:GetSubplanEnd
@@ -299,10 +407,10 @@ goto :eof
 
 :JOBsTsqlExportbegin
 
+	echo %DATE%,%TIME:~0,-3%: Processing JOBS for plan: '%PLAN_NAME%'
+
 	set "ExportPath=%EXPORT_DIR%\%SQL_SERVER%"
 	set "SysOperatorsSQLFile=SysOperators.sql"
-
-	echo Export MS SQL SERVER JOBS and PARAMETERS TSQL: '%EXPORT_DIR%\%SQL_SERVER%'
 
 	call :ExportSysOperators
 	call :ExportJOBStoTSQL
@@ -317,6 +425,8 @@ goto :eof
 goto :eof
 
 :ExportJOBStoTSQL
+
+	if not defined subplans goto :ExportJOBSEnd
 
 	set "jobID="
 	set "jobNAME="
@@ -336,10 +446,9 @@ goto :eof
 goto :eof
 
 :CreateExportJOBTSQL
-		echo Processing JOBS for plan: '%PLAN_NAME%': Subplan: '%tmpsubplan%' Begin
+		echo %DATE%,%TIME:~0,-3%: Processing JOBS for plan: '%PLAN_NAME%': Subplan: '%tmpsubplan%' Begin
 		call :collectAndExportJobParameters
-		echo Processing JOBS for plan: '%PLAN_NAME%': Subplan: '%tmpsubplan%' End
-		echo.
+		echo %DATE%,%TIME:~0,-3%: Processing JOBS for plan: '%PLAN_NAME%': Subplan: '%tmpsubplan%' End
 :CreateExportJOBTSQL
 goto :eof
 
@@ -349,7 +458,7 @@ goto :eof
 
 		:ProcSysOperators
 
-			echo First, let's perform a one-time processing of msdb.dbo.sysoperators records.
+			echo %DATE%,%TIME:~0,-3%: First, let's perform a one-time processing of msdb.dbo.sysoperators records.
 
 			set "SysOpsSqlHeader=false"
 			del /f /q "%EXPORT_DIR%\%SQL_SERVER%\SysOperators.sql" >nul 2>&1
@@ -377,6 +486,19 @@ goto :eof
 			::: Test delims - ¶
 			for /f "usebackq tokens=*" %%# in (`sqlcmd -S %SQL_SERVER% -E -h -1 -s "¶" -w 65535 -y 0 -Y 0 -Q "SET NOCOUNT ON; SELECT name, enabled, email_address, pager_address, weekday_pager_start_time, weekday_pager_end_time, saturday_pager_start_time, saturday_pager_end_time, sunday_pager_start_time, sunday_pager_end_time, pager_days, netsend_address, category_id FROM msdb.dbo.sysoperators" 2^>nul`) do (
 				set "msdb.dbo.sysoperators=%%~#¶"
+				set "name="
+				set "enabled="
+				set "email_address="
+				set "pager_address="
+				set "weekday_pager_start_time="
+				set "weekday_pager_end_time="
+				set "saturday_pager_start_time="
+				set "saturday_pager_end_time="
+				set "sunday_pager_start_time="
+				set "sunday_pager_end_time="
+				set "pager_days="
+				set "netsend_address="
+				set "category_id="
 				for /f "usebackq tokens=1-13 delims=¶" %%a in (`echo "!msdb.dbo.sysoperators!"`) do (
 					set "name=%%~a"
 					set "enabled=%%~b"
@@ -417,7 +539,7 @@ goto :eof
 					)			
 				)
 				if defined name (
-					echo Sysoperator: '!name!', Mail: '!email_address!', Enabled: '!enabled!': Cat.Id: '!category_id!': Cat.Name: '!category_name!': Pager: '!pager_address!': NetSend: '!netsend_address!'
+					echo %DATE%,%TIME:~0,-3%: Sysoperator: '!name!', Mail: '!email_address!', Enabled: '!enabled!': Cat.Id: '!category_id!': Cat.Name: '!category_name!': Pager: '!pager_address!': NetSend: '!netsend_address!'
 					if /i "!SysOpsSqlHeader!" == "false" (
 						call :GenerateSysOpsTSQLFile :SysOpsSqlHeader >"%EXPORT_DIR%\%SQL_SERVER%\SysOperators.sql"
 						set "SysOpsSqlHeader=true"
@@ -460,7 +582,7 @@ goto :eof
 		echo.	WHERE name = N'%name%'
 		echo.)
 		echo.BEGIN
-		echo PRINT 'Add operator: %name%, e-mail: %email_address%';
+		echo.PRINT 'Add operator: %name%, e-mail: %email_address%';
 		echo.EXEC msdb.dbo.sp_add_operator @name=N'%name%', 
 		echo.		@enabled=%enabled%, 
 		if defined email_address (
@@ -499,36 +621,37 @@ goto :eof
 	set "T-SQLDATE=%DATE%"
 	set "T-SQLTIME=%TIME:~0,-3%"
 
+	echo %DATE%,%TIME:~0,-3%: Collect JOB params for: '%PLAN_NAME%.%tmpsubplan%' and Generate TSQL File: '%EXPORT_DIR%\%SQL_SERVER%\%PLAN_NAME%.%tmpsubplan%.sql'
+
 	::: Collect Job params and call :GenerateTSQLFile :JobHeader
 		::: msdb.dbo.sysjobs
-		set "job_id="
-		set "originating_server_id="
-		set "name="
-		set "enabled="
-		set "description="
-		set "start_step_id="
-		set "category_id="
-		set "owner_sid="
-		set "notify_level_eventlog="
-		set "notify_level_email="
-		set "notify_level_netsend="
-		set "notify_level_page="
-		set "notify_email_operator_id="
-		set "notify_netsend_operator_id="
-		set "notify_page_operator_id="
-		set "delete_level="
-		set "date_created="
-		set "date_modified="
-		set "version_number="
+			set "job_id="
+			set "originating_server_id="
+			set "name="
+			set "enabled="
+			set "description="
+			set "start_step_id="
+			set "category_id="
+			set "owner_sid="
+			set "notify_level_eventlog="
+			set "notify_level_email="
+			set "notify_level_netsend="
+			set "notify_level_page="
+			set "notify_email_operator_id="
+			set "notify_netsend_operator_id="
+			set "notify_page_operator_id="
+			set "delete_level="
+			set "date_created="
+			set "date_modified="
+			set "version_number="
 
 		::: msdb.dbo.sysoperators
-		set "notify_email_operator_name="
+			set "notify_email_operator_name="
 
 		::: Test delims - ¶
 			set "msdb.dbo.sysjobs="
 			for /f "usebackq tokens=*" %%# in (`sqlcmd -S %SQL_SERVER% -E -h -1 -s "¶" -w 65535 -y 0 -Y 0 -Q "SET NOCOUNT ON; SELECT job_id, originating_server_id, name, enabled, description, start_step_id, category_id, owner_sid, notify_level_eventlog, notify_level_email, notify_level_netsend, notify_level_page, notify_email_operator_id, notify_netsend_operator_id, notify_page_operator_id, delete_level, date_created, date_modified, version_number FROM msdb.dbo.sysjobs WHERE name=N'%PLAN_NAME%.%tmpsubplan%'" 2^>nul`) do (
 				set "msdb.dbo.sysjobs=%%~#¶"
-				echo !msdb.dbo.sysjobs! > msdb.dbo.sysjobs.txt
 			)
 			for /f "usebackq tokens=1-8 delims=¶" %%a in (`echo "%msdb.dbo.sysjobs%"`) do (
 				set "job_id=%%~a"
@@ -609,41 +732,60 @@ goto :eof
 			)
 			set "jobID=!job_id!"
 			set "jobNAME=!name!"
-			echo Job: '!jobID!', Name: '!jobNAME!', Version: '!version_number!', Category: '!category_name!':'!category_type!':'!category_type_str!', Owner SID: '!owner_sid!', Owner Login Name: '!owner_login_name!'
+			echo %DATE%,%TIME:~0,-3%: Job: '!jobID!', Name: '!jobNAME!', Version: '!version_number!', Category: '!category_name!':'!category_type!':'!category_type_str!', Owner Login Name: '!owner_login_name!'
 			if defined notify_email_operator_name (
-				echo Job: '!jobID!', Email operator Id: '%notify_email_operator_id%', Email operator Name: '%notify_email_operator_name%'
+				echo %DATE%,%TIME:~0,-3%: Job: '!jobID!', Email operator Id: '%notify_email_operator_id%', Email operator Name: '%notify_email_operator_name%'
 			)
 		call :GenerateTSQLFile :JobHeader>"%EXPORT_DIR%\%SQL_SERVER%\%PLAN_NAME%.%tmpsubplan%.sql" 2>&1
 
 	::: Collect Job Steps and call :GenerateTSQLFile :JobSteps
 		::: msdb.dbo.sysjobsteps
 		::: set "job_id=" defined in Job params
-		set "step_id="
-		set "step_name="
-		set "subsystem="
-		set "command="
-		set "flags="
-		set "additional_parameters="
-		set "cmdexec_success_code="
-		set "on_success_action="
-		set "on_success_step_id="
-		set "on_fail_action="
-		set "on_fail_step_id="
-		set "server="
-		set "database_name="
-		set "database_user_name="
-		set "retry_attempts="
-		set "retry_interval="
-		set "os_run_priority="
-		set "output_file_name="
-		set "proxy_id="
-		set "step_uid="
+			set "step_id="
+			set "step_name="
+			set "subsystem="
+			set "command="
+			set "flags="
+			set "additional_parameters="
+			set "cmdexec_success_code="
+			set "on_success_action="
+			set "on_success_step_id="
+			set "on_fail_action="
+			set "on_fail_step_id="
+			set "server="
+			set "database_name="
+			set "database_user_name="
+			set "retry_attempts="
+			set "retry_interval="
+			set "os_run_priority="
+			set "output_file_name="
+			set "proxy_id="
+			set "step_uid="
 
 		::: Test delims- ¶
 			set "msdb.dbo.sysjobsteps="
 			for /f "usebackq tokens=*" %%# in (`sqlcmd -S %SQL_SERVER% -E -h -1 -s "¶" -w 65535 -y 0 -Y 0 -Q "SET NOCOUNT ON; SELECT job_id, step_id, step_name, subsystem, command, flags, additional_parameters, cmdexec_success_code, on_success_action, on_success_step_id, on_fail_action, on_fail_step_id, server, database_name, database_user_name, retry_attempts, retry_interval, os_run_priority, output_file_name, proxy_id, step_uid FROM msdb.dbo.sysjobsteps WHERE job_id='%jobID%' ORDER BY step_name" 2^>nul`) do (
 				set "msdb.dbo.sysjobsteps=%%~#¶"
-				echo !msdb.dbo.sysjobsteps! > msdb.dbo.sysjobsteps.txt
+				set "step_id="
+				set "step_name="
+				set "subsystem="
+				set "command="
+				set "flags="
+				set "additional_parameters="
+				set "cmdexec_success_code="
+				set "on_success_action="
+				set "on_success_step_id="
+				set "on_fail_action="
+				set "on_fail_step_id="
+				set "server="
+				set "database_name="
+				set "database_user_name="
+				set "retry_attempts="
+				set "retry_interval="
+				set "os_run_priority="
+				set "output_file_name="
+				set "proxy_id="
+				set "step_uid="
 				for /f "tokens=2-9 delims=¶" %%a in ("!msdb.dbo.sysjobsteps!") do (
 					set "step_id=%%~a"
 					set "step_name=%%~b"
@@ -692,8 +834,8 @@ goto :eof
 				call :trim_spaces "!proxy_id!" proxy_id
 				call :trim_spaces "!step_uid!" step_uid
 
-				echo Job: '!job_id!': StepID: '!step_id!': StepUID:'!step_uid!': StepNAME:'!step_name!': SubSYS:'!subsystem!': Flags:'!flags!'
-				echo Job: '!job_id!': StepID: '!step_id!': Command: '!command!'
+				echo %DATE%,%TIME:~0,-3%: Job: '!job_id!': StepID: '!step_id!': StepUID:'!step_uid!': StepNAME:'!step_name!': SubSYS:'!subsystem!': Flags:'!flags!'
+				echo %DATE%,%TIME:~0,-3%: Job: '!job_id!': StepID: '!step_id!': Command: '!command!'
 
 				call :GenerateTSQLFile :JobSteps >>"%EXPORT_DIR%\%SQL_SERVER%\%PLAN_NAME%.%tmpsubplan%.sql" 2>&1
 				call :GenerateTSQLFile :JobStartStep >>"%EXPORT_DIR%\%SQL_SERVER%\%PLAN_NAME%.%tmpsubplan%.sql" 2>&1
@@ -727,12 +869,33 @@ goto :eof
 			set "date_created="
 			set "date_modified="
 			set "version_number="
-			set "msdb.dbo.sysjobschedules="
 
+		set "msdb.dbo.sysjobschedules="
 		for /f "usebackq tokens=*" %%# in (`sqlcmd -S %SQL_SERVER% -E -h -1 -s "¶" -w 65535 -Q "SET NOCOUNT ON; SELECT schedule_id, job_id, next_run_date, next_run_time FROM msdb.dbo.sysjobschedules WHERE job_id='!jobID!' ORDER BY schedule_id"`) do (
 			set "msdb.dbo.sysjobschedules=%%~#¶"
-			echo !msdb.dbo.sysjobschedules! > msdb.dbo.sysjobschedules.txt
-			rem Get next schedule_id by job_id
+			set "schedule_id="
+			set "job_id="
+			set "next_run_date="
+			set "next_run_time="
+			set "schedule_id="
+			set "schedule_uid="
+			set "originating_server_id="
+			set "name="
+			set "owner_sid="
+			set "enabled="
+			set "freq_type="
+			set "freq_interval="
+			set "freq_subday_type="
+			set "freq_subday_interval="
+			set "freq_relative_interval="
+			set "freq_recurrence_factor="
+			set "active_start_date="
+			set "active_end_date="
+			set "active_start_time="
+			set "active_end_time="
+			set "date_created="
+			set "date_modified="
+			set "version_number="
 			for /f "tokens=1-4 delims=¶" %%a in ("!msdb.dbo.sysjobschedules!") do (
 				set "schedule_id=%%~a"
 				set "job_id=%%~b"
@@ -744,7 +907,7 @@ goto :eof
 				call :trim_spaces "!next_run_date!" next_run_date
 				call :trim_spaces "!next_run_time!" next_run_time
 
-				echo Job: '!job_id!': Schedule_id: '!schedule_id!': NextRun: '!next_run_date!, !next_run_time!'
+				echo %DATE%,%TIME:~0,-3%: Job: '!job_id!': Schedule_id: '!schedule_id!': NextRun: '!next_run_date!, !next_run_time!'
 
 				rem Get schedule params for schedule_id
 				set "msdb.dbo.sysschedules="
@@ -796,7 +959,7 @@ goto :eof
 					call :trim_spaces "!date_modified!" date_modified
 					call :trim_spaces "!version_number!" version_number
 
-					echo Job: '!jobID!': Schedule: '!name!': Enabled: '!enabled!': FreqType: '!freq_type!': FreqInterval: '!freq_interval!'
+					echo %DATE%,%TIME:~0,-3%: Job: '!jobID!': Schedule: '!name!': Enabled: '!enabled!': FreqType: '!freq_type!': FreqInterval: '!freq_interval!'
 					call :GenerateTSQLFile :JobSchedules >>"%EXPORT_DIR%\%SQL_SERVER%\%PLAN_NAME%.%tmpsubplan%.sql" 2>&1
 				)
 			)
@@ -810,7 +973,7 @@ goto :eof
 			call :trim_spaces "!tmp_server_name!" tmp_server_name
 			set "server_name=!tmp_server_name!"
 			if "%SQL_SERVER%"=="!server_name!" set "server_name=local"
-			echo Job: '!jobID!': Server: '!server_name!':'!tmp_server_name!'
+			echo %DATE%,%TIME:~0,-3%: Job: '!jobID!': Server: '!server_name!':'!tmp_server_name!'
 		)
 		::: Set Job Server before create alerts
 		call :GenerateTSQLFile :JobServer >>"%EXPORT_DIR%\%SQL_SERVER%\%PLAN_NAME%.%tmpsubplan%.sql" 2>&1
@@ -855,10 +1018,36 @@ goto :eof
 		set "msdb.dbo.sysalerts="
 		for /f "usebackq tokens=*" %%A in (`sqlcmd -S %SQL_SERVER% -E -h -1 -s "¶" -w 65535 -Q "SET NOCOUNT ON; SELECT id, name, event_source, event_category_id, event_id, message_id, severity, enabled, delay_between_responses, last_occurrence_date, last_occurrence_time, last_response_date, last_response_time, notification_message, include_event_description, database_name, event_description_keyword, occurrence_count, count_reset_date, count_reset_time, job_id, has_notification, flags, performance_condition, category_id FROM msdb.dbo.sysalerts WHERE job_id='%jobID%'"`) do (
 			set "msdb.dbo.sysalerts=%%~A¶"
-			echo !msdb.dbo.sysalerts! > msdb.dbo.sysalerts.txt
 			set "id="
 			set "name="
+			set "event_source="
+			set "event_category_id="
+			set "event_id="
+			set "message_id="
+			set "severity="
 			set "enabled="
+			set "delay_between_responses="
+			set "last_occurrence_date="
+			set "last_occurrence_time="
+			set "last_response_date="
+			set "last_response_time="
+			set "notification_message="
+			set "include_event_description="
+			set "database_name="
+			set "event_description_keyword="
+			set "occurrence_count="
+			set "count_reset_date="
+			set "count_reset_time="
+			set "job_id="
+			set "has_notification="
+			set "flags="
+			set "performance_condition="
+			set "category_id="
+			set "category_name="
+			set "wmi_namespace="
+			set "wmi_query="
+			set "sp_help_alert_flags="
+			set "raise_snmp_trap="
 			for /f "tokens=1-8 delims=¶" %%a in ("!msdb.dbo.sysalerts!") do (
 				set "id=%%~a"
 				set "name=%%~b"
@@ -917,13 +1106,6 @@ goto :eof
 				call :trim_spaces "!performance_condition!" performance_condition
 				call :trim_spaces "!category_id!" category_id
 				
-				echo "!event_category_id!" | find /i "NULL" >nul 2>&1 && set "event_category_id="
-				echo "!event_id!" | find /i "NULL" >nul 2>&1 && set "event_id="
-				echo "!notification_message!" | find /i "NULL" >nul 2>&1 && set "notification_message="
-				echo "!database_name!" | find /i "NULL" >nul 2>&1 && set "database_name="
-				echo "!event_description_keyword!" | find /i "NULL" >nul 2>&1 && set "event_description_keyword="
-				echo "!performance_condition!" | find /i "NULL" >nul 2>&1 && set "performance_condition="
-				
 				if defined name (
 					for /f "usebackq tokens=*" %%C in (`sqlcmd -S %SQL_SERVER% -E -d msdb -h -1 -W -Q "SET NOCOUNT ON; SELECT name FROM msdb.dbo.syscategories WHERE category_id='!category_id!';"`) do (
 						set "category_name=%%~C"
@@ -952,7 +1134,7 @@ goto :eof
 						echo "!wmi_query!" | find /i "NULL" >nul 2>&1 && set "wmi_query="
 
 					)
-					echo Job: '!jobID!': Alert Id: '!id!': Name: '!name!': Event Source: '!event_source!': Enabled: '!enabled!': Category: '!category_name!': RaiseSNMP: '!raise_snmp_trap!': WMI_NS: '!wmi_namespace!': WMI_Query: '!wmi_query!'
+					echo %DATE%,%TIME:~0,-3%: Job: '!jobID!': Alert Id: '!id!': Name: '!name!': Event Source: '!event_source!': Enabled: '!enabled!': Category: '!category_name!': RaiseSNMP: '!raise_snmp_trap!': WMI_NS: '!wmi_namespace!': WMI_Query: '!wmi_query!'
 					call :GenerateTSQLFile :JobAlert >>"%EXPORT_DIR%\%SQL_SERVER%\%PLAN_NAME%.%tmpsubplan%.sql" 2>&1
 				)
 			)
@@ -975,7 +1157,7 @@ goto :eof
 					if not "%OutType%" == ":JobServer" (
 						if not "%OutType%" == ":JobAlert" (
 							if not "%OutType%" == ":JobFooter" (
-								echo ERROR: GenerateTSQLFile: OutType not defined!
+								echo %DATE%,%TIME:~0,-3%: ERROR: GenerateTSQLFile: OutType not defined!
 								goto :GenerateTSQLFileEnd
 							)
 						)
@@ -1193,7 +1375,7 @@ goto :eof
 			echo.		@database_name=N'%database_name%', 
 			)
 			if defined performance_condition (
-				echo.		@performance_condition=N'%performance_condition%', 
+			echo.		@performance_condition=N'%performance_condition%', 
 			)
 			if defined raise_snmp_trap if not "%raise_snmp_trap%" == "0" (
 			echo.		@raise_snmp_trap=%raise_snmp_trap%, 
@@ -1202,7 +1384,7 @@ goto :eof
 			echo.		@wmi_namespace=N'%wmi_namespace%', 
 			)
 			if defined wmi_query (
-			wmi_query echo.		@wmi_query=N'%wmi_query%', 
+			echo.		@wmi_query=N'%wmi_query%', 
 			)
 			echo.		@job_id=@jobId
  			echo.IF ^(@@ERROR ^<^> 0 OR @ReturnCode ^<^> 0^) GOTO QuitWithRollback
@@ -1284,5 +1466,7 @@ goto :eof
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 :exit
+@echo "%PS_TEMP%" | find /i "\%PSRND%" >nul 2>&1 && rd /s /q "%PS_TEMP%" >nul 2>&1
+@set "PS_TEMP=%TEMP%"
 @pause
 @endlocal && exit /b %errlvl%

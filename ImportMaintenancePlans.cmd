@@ -1,31 +1,29 @@
 @echo off
 setlocal enabledelayedexpansion
 
-::: Version 2.26.12.2025 Test realease
+::: Version 3.2.1.2026 Test realease
 ::: (C) 2025 by Borizz.K (borizz.k@gmail.com) - https://github.com/BorizzK
 
 :init
 
-	echo Import Maintenance plans to MS SQL Servers.
+	echo %DATE%,%TIME:~0,-3%: Import Maintenance plans to MS SQL Servers.
 	::: List of servers.
-	::set "SQL_SERVERS=SQLSERVER1;SQLSERVER2;"
-	set "SQL_SERVERS=SERV-1C8CA0;SERV-1C82CA1;SERV-1C82CA2;"
-	set "SQL_SERVERS=SERV-1C8CA0"
+	set "SQL_SERVERS=SQLSERVER1;SQLSERVER2;"
+	::: If a plan name is defined in OnePlan, only the plan with that name will be processed.
 	set "OnePlan=%~1"
-	set "OnePlan=EveryDay_Backup_Template"
 
 	sqlcmd -? >nul 2>&1
 	if %errorlevel% == 9009 (
-		echo ERROR: Sqlcmd is missing. Terminating.
+		echo %DATE%,%TIME:~0,-3%: ERROR: Sqlcmd is missing. Terminating.
 		exit /b 1
 	)
 	bcp -? -? >nul 2>&1
 	if %errorlevel% == 9009 (
-		echo ERROR: Bcp is missing. Terminating.
+		echo %DATE%,%TIME:~0,-3%: ERROR: Bcp is missing. Terminating.
 		exit /b 2
 	)
 	net session >nul 2>&1 || (
-		echo ERROR: Administrator or system rights required. Terminating.
+		echo %DATE%,%TIME:~0,-3%: ERROR: Administrator or system rights required. Terminating.
 		exit /b 3
 	)
 
@@ -38,9 +36,9 @@ setlocal enabledelayedexpansion
 	if not exist "%IMPORT_DIR%" (
 		set "IMPORT_DIR=%RunPath%"
 	)
-	:::if not exist "%IMPORT_DIR%" mkdir "%IMPORT_DIR%"
+
 	if not exist "%IMPORT_DIR%" (
-		echo ERROR: Directory '%IMPORT_DIR%' is not accessible. Terminating.
+		echo %DATE%,%TIME:~0,-3%: ERROR: Directory '%IMPORT_DIR%' is not accessible. Terminating.
 		exit /b 3
 	)
 	set /a "DTSXProcessed=0"
@@ -51,11 +49,25 @@ setlocal enabledelayedexpansion
 	set "P_SQL_SERVER="
 	set /a "stoken=0"
 
+	if not defined TEMP set "TEMP=%SystemRoot%\Temp"
+	if not defined TMP  set "TMP=%SystemRoot%\Temp"
+	if not exist "%TEMP%\" (
+		echo "%TEMP%" | find /i ":\" >nul 2>&1 && md "%TEMP%\" >nul 2>&1
+	)
+	if not exist "%TMP%\" (
+		echo "%TMP%" | find /i ":\" >nul 2>&1 && md "%TMP%\" >nul 2>&1
+	)
+	set "PSRND=%RANDOM%"
+	set "PS_TEMP=%TEMP%\%PSRND%"
+	md "%PS_TEMP%" >nul 2>&1
+
 :begin
 
-	echo Working dir: '%RunPath%'
-	echo Root import dir: '%IMPORT_DIR%'
-	echo All .dtsx files in '%IMPORT_DIR%' will be impotred.
+	echo %DATE%,%TIME:~0,-3%: Input params: '%~1'
+	echo %DATE%,%TIME:~0,-3%: Working dir: '%RunPath%'
+	echo %DATE%,%TIME:~0,-3%: Root export dir: '%IMPORT_DIR%'
+	echo %DATE%,%TIME:~0,-3%: PS temp dir: '%PS_TEMP%'
+	echo %DATE%,%TIME:~0,-3%: All .dtsx files in subfolders of '%IMPORT_DIR%' will be impotred.
 
 	:procservers
 		set /a "stoken+=1"
@@ -64,10 +76,10 @@ setlocal enabledelayedexpansion
 		for /f "tokens=%stoken% delims=; " %%i in ("%SQL_SERVERS%") do set "P_SQL_SERVER=%%~i"
 		if defined P_SQL_SERVER (
 			set "SQL_SERVER=!P_SQL_SERVER!"
-			echo Try to processing server %stoken%: '!SQL_SERVER!'
+			echo %DATE%,%TIME:~0,-3%: Try to processing server %stoken%: '!SQL_SERVER!'
 			if defined PG_SQL_SERVERS (
 				echo "!PG_SQL_SERVERS!" | find /i "!P_SQL_SERVER!;" >nul 2>&1 && (
-					echo Processing server %stoken%: '!P_SQL_SERVER!' already processed.
+					echo %DATE%,%TIME:~0,-3%: Processing server %stoken%: '!P_SQL_SERVER!' already processed.
 					goto :procservers
 				)
 			)
@@ -76,13 +88,14 @@ setlocal enabledelayedexpansion
 			) else (
 				set "PG_SQL_SERVERS=!SQL_SERVER!;"
 			)
+			echo %DATE%,%TIME:~0,-3%: Check connection to server %stoken%: '!SQL_SERVER!'
 			ping -n 2 !SQL_SERVER!  >nul 2>&1
-			sqlcmd -S !SQL_SERVER! -E -l 1 -Q "SELECT 1" >nul 2>&1 && (
-				echo Processing server %stoken%: '!P_SQL_SERVER!'
+			sqlcmd -S !SQL_SERVER! -E -l 2 -t 2 -Q "SELECT 1" >nul 2>&1 && (
+				echo %DATE%,%TIME:~0,-3%: Processing server %stoken%: '!P_SQL_SERVER!'
 				call :importplans "!SQL_SERVER!"
 				echo.>nul
 			) || (
-				echo Processing server %stoken%: '!P_SQL_SERVER!': the server is unavailable. Skip.
+				echo %DATE%,%TIME:~0,-3%: '!P_SQL_SERVER!': the server is unavailable. Skip.
 			)
 			ping -n 2 127.0.0.1 >nul 2>&1
 		) else (
@@ -91,10 +104,10 @@ setlocal enabledelayedexpansion
 		goto :procservers
 	:procserversend
 
-	echo.Servers processed: '%PG_SQL_SERVERS%'
-	echo.DTSX files processed: '%DTSXProcessed%'
+	echo %DATE%,%TIME:~0,-3%: Servers processed: '%PG_SQL_SERVERS%'
+	echo %DATE%,%TIME:~0,-3%: DTSX files processed: '%DTSXProcessed%'
 	echo.
-	echo.ATTENTION: YOU MUST CONNECT TO EACH SERVER VIA SMSS, OPEN EACH MAINTENANCE PLAN, AND SAVE IT FOR THE REPORTING TASK TO BE REGISTERED FOR EACH MAINTENANCE PLAN. 
+	echo ATTENTION: YOU MUST CONNECT TO EACH SERVER VIA SMSS, OPEN EACH MAINTENANCE PLAN, AND SAVE IT FOR THE REPORTING TASK TO BE REGISTERED FOR EACH MAINTENANCE PLAN. 
 	echo.
 
 :end
@@ -102,22 +115,22 @@ goto :exit
 
 :importplans
 
-	echo Import Plans to '%SQL_SERVER%' from dir '%IMPORT_DIR%\%SQL_SERVER%'
+	echo %DATE%,%TIME:~0,-3%: Import Plans to '%SQL_SERVER%' from dir '%IMPORT_DIR%\%SQL_SERVER%'
 
 	set "ServerSysOperatorsProcessed=false"
 
 	set "dtsxmask=*"
 	if defined OnePlan (
 		set "dtsxmask=%OnePlan%"
-		echo Only one plan defined: !dtsxmask!
+		echo %DATE%,%TIME:~0,-3%: Only one plan defined: !dtsxmask!
 	)
 
 	dir /b "%IMPORT_DIR%\%SQL_SERVER%\%dtsxmask%.dtsx" >nul 2>&1 || (
-		echo No DTSX files in '%IMPORT_DIR%\%SQL_SERVER%' - Skip.
+		echo %DATE%,%TIME:~0,-3%: No DTSX files in '%IMPORT_DIR%\%SQL_SERVER%' - Skip.
 		goto :importplansend
 	)
 
-	echo Checking MsDtsServer [SSIS] on %SQL_SERVER%...
+	echo %DATE%,%TIME:~0,-3%: Checking MsDtsServer [SSIS] on %SQL_SERVER%...
 	set "MsDtsServer="
 	set "UseMsDtsServer=false"
 	set "experrlvl=8"
@@ -133,9 +146,9 @@ goto :exit
 	)
 	dtutil /? 2>nul | find "Server" >nul 2>&1 || set "UseMsDtsServer=false"
 	if /i "%UseMsDtsServer%" == "true" (
-		echo Using dtutil [SSIS] [dtutil:%UseMsDtsServer%]...
+		echo %DATE%,%TIME:~0,-3%: Using dtutil [SSIS] [dtutil:%UseMsDtsServer%]...
 	) else (
-		echo Using sqlcmd/bcp [SQL] [dtutil:%UseMsDtsServer%]...
+		echo %DATE%,%TIME:~0,-3%: Using sqlcmd/bcp [SQL] [dtutil:%UseMsDtsServer%]...
 	)
 
 	for %%F in ("%IMPORT_DIR%\%SQL_SERVER%\%dtsxmask%.dtsx") do (
@@ -157,7 +170,7 @@ goto :eof
 	set "FILE=%~1"
 	set "LINE="
 
-	echo Processing file '%FILE%'
+	echo %DATE%,%TIME:~0,-3%: Processing file '%FILE%'
 
 	for /f "tokens=*" %%i in ('type "%FILE%" 2^>nul ^| find /i "DTS:ObjectName" ') do (
 		set "LINE=%%i"
@@ -178,7 +191,7 @@ goto :eof
 
 :readfileSSIS
 
-	echo Reading: 'SSIS' plan dtsid and name.
+	echo %DATE%,%TIME:~0,-3%: Reading: 'SSIS' plan DTSID and NAME.
 	set "PLAN_NAME="
 	set "PLAN_DTSID="
 	for /f "tokens=2 delims==" %%i in ('type "%~1" 2^>nul ^| find /i "DTS:DTSID"') do (
@@ -193,7 +206,7 @@ goto :eof
 
 :readfileSQL
 
-	echo Reading: 'SQL' plan dtsid and name.
+	echo %DATE%,%TIME:~0,-3%: Reading: 'SQL' plan DTSID and NAME.
 	set "PLAN_DTSID="
 	set "PLAN_NAME="
 
@@ -235,13 +248,13 @@ goto :eof
 	set "EXISTSSSISDTSID="
 	set "EXISTSPLANDTSID="
 
-	echo Processing Plan: Name: '%tempPlanName%', Dtsid: '%tempPlanDTSID%' from file: '%planDTSXFile%'
+	echo %DATE%,%TIME:~0,-3%: Processing Plan: Name: '%tempPlanName%', Dtsid: '%tempPlanDTSID%' from file: '%planDTSXFile%'
 	set /a "DTSXProcessed+=1"
 
 	for /f "usebackq tokens=*" %%P in (`sqlcmd -S %SQL_SERVER% -E -d msdb -h -1 -Q "SET NOCOUNT ON; SELECT name FROM dbo.sysssispackages WHERE name='%tempPlanName%'" 2^>nul`) do set "EXISTS=%%~P"
 	if defined EXISTS call :trim_spaces "%EXISTS%" EXISTS
 	if defined EXISTS if /i "%tempPlanName%" == "%EXISTS%" (
-		echo WARNING: Plan already exists: Name: '%tempPlanName%': Existing plan name: '%EXISTS%'. Remove existng plan before import. Skip.
+		echo %DATE%,%TIME:~0,-3%: WARNING: Plan already exists: Name: '%tempPlanName%': Existing plan name: '%EXISTS%'. Remove existng plan before import. Skip.
 		set "EXISTS="
 		goto :processingPlanEnd
 	)
@@ -249,7 +262,7 @@ goto :eof
 	if defined EXISTS call :trim_spaces "%EXISTS%" EXISTS
 	if defined EXISTS set "EXISTS=%EXISTS:DTSID=%"
 	if defined EXISTS (
-		echo WARNING: Plan already exists with other name: Dtsid: '%tempPlanDTSID%': Existing plan name: '%EXISTS%'. Remove existng plan before import. Skip.
+		echo %DATE%,%TIME:~0,-3%: WARNING: Plan already exists with other name: Dtsid: '%tempPlanDTSID%': Existing plan name: '%EXISTS%'. Remove existng plan before import. Skip.
 		set "EXISTS="
 		goto :processingPlanEnd
 	)
@@ -288,20 +301,37 @@ goto :eof
 		:importplan
 		
 			:chekdatasrc
-				echo Checking source file...
+				echo %DATE%,%TIME:~0,-3%: Checking source file.
 				type "%planDTSXFile%" | find /i "Data Source=%SQL_SERVER%" >nul 2>&1 && (
 					findstr /i "CreatorComputerName=\"%SQL_SERVER%\"" "%planDTSXFile%" >nul 2>&1 && (
 						findstr /i "CreatorName=\"%USERNAME%\"" "%planDTSXFile%" >nul 2>&1 && (
-							echo Correction values in the source file is not required.
+							echo %DATE%,%TIME:~0,-3%: Correction values in the source file is not required.
 							goto :chekdatasrcend
 						)
 					)
 				)
-				if not exist "%planDTSXFile%.bak" copy /y "%planDTSXFile%" "%planDTSXFile%.bak" >nul 2>&1 && echo Making a backup of source file.
-				echo Correcting values in the source file...
+				if not exist "%planDTSXFile%.bak" copy /y "%planDTSXFile%" "%planDTSXFile%.bak" >nul 2>&1 && echo %DATE%,%TIME:~0,-3%: Making a backup of source file.
+
+				echo %DATE%,%TIME:~0,-3%: Correcting values in the source file.
+
+				set "pwerrlvl=0"
+				
+				set "$CCD=%CD%" >nul 2>&1
+				cd "%PS_TEMP%" >nul 2>&1
+				cd /d "%PS_TEMP%" >nul 2>&1
+
+				echo %DATE%,%TIME:~0,-3%: Execution PS commands. Working dir: '%CD%'
+
 				powershell -command "$p='%planDTSXFile%'; $c=[IO.File]::ReadAllLines($p,[Text.Encoding]::UTF8); for ($i=0;$i -lt $c.Length;$i++) { if ($c[$i] -match 'DTS:CreatorComputerName=\"') { $c[$i] = ($c[$i] -replace 'DTS:CreatorComputerName=\"[^\"]*\"','DTS:CreatorComputerName=\"%SQL_SERVER%\"') } }; [IO.File]::WriteAllLines($p,$c,[Text.Encoding]::UTF8)" >nul 2>&1
+				set /a "pwerrlvl+=%errorlevel%"
 				powershell -command "$p='%planDTSXFile%'; $c=[IO.File]::ReadAllLines($p,[Text.Encoding]::UTF8); for ($i=0;$i -lt $c.Length;$i++) { if ($c[$i] -match 'DTS:CreatorName=\"') { $c[$i] = ($c[$i] -replace 'DTS:CreatorName=\"[^\"]*\"','DTS:CreatorName=\"%USERNAME%\"') } }; [IO.File]::WriteAllLines($p,$c,[Text.Encoding]::UTF8)" >nul 2>&1
+				set /a "pwerrlvl+=%errorlevel%"
 				powershell -command "$p='%planDTSXFile%'; $c=[System.Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($p)); $c = $c -replace '(?i)Data Source=[^;]+','Data Source=%SQL_SERVER%'; [IO.File]::WriteAllBytes($p,[System.Text.Encoding]::UTF8.GetBytes($c))" >nul 2>&1
+				set /a "pwerrlvl+=%errorlevel%"
+
+				cd "%$CCD%" >nul 2>&1
+				cd /d "%$CCD%" >nul 2>&1
+
 			:chekdatasrcend
 
 			:writetoserverandimport
@@ -312,11 +342,11 @@ goto :eof
 			:::::::::::::::::::::::::::::::::::::::
 
 				if /i "%UseMsDtsServer%" == "true" (
-					echo Import Plan: dtutil: '%tempPlanName%' from file '%planDTSXFile%' to '%SQL_SERVER%'
+					echo %DATE%,%TIME:~0,-3%:  Import Plan: dtutil: '%tempPlanName%' from file '%planDTSXFile%' to '%SQL_SERVER%'
 					dtutil /FILE "%planDTSXFile%" /DestServer "%SQL_SERVER%" /COPY SQL;"\Maintenance Plans\%tempPlanName%" /QUIET >nul 2>&1
-					echo Result: !errorlevel!
+					echo %DATE%,%TIME:~0,-3%:  Result: !errorlevel!
 				) else (
-					echo Import Plan: sqlcmd: '%tempPlanName%' from file '%planDTSXFile%' to '%SQL_SERVER%'
+					echo %DATE%,%TIME:~0,-3%: Import Plan: sqlcmd: '%tempPlanName%' from file '%planDTSXFile%' to '%SQL_SERVER%'
 					set "REMOTE_FILE_NAME="
 					set "REMOTE_FILE="
 					for /f %%i in ("%planDTSXFile%") do set "REMOTE_FILE_NAME=%%~ni%%~xi"
@@ -325,11 +355,11 @@ goto :eof
 					if exist "\\%SQL_SERVER%\C$\Temp\!REMOTE_FILE_NAME!" (
 						set "REMOTE_FILE=C:\Temp\!REMOTE_FILE_NAME!"
 						sqlcmd -S %SQL_SERVER% -E -d msdb -Q "INSERT INTO msdb.dbo.sysssispackages (id,name,packagetype,packagedata,createdate,folderid,ownersid,packageformat,vermajor,verminor,verbuild,verid) SELECT NEWID(),N'%tempPlanName%',6,BulkColumn,GETDATE(),(SELECT folderid FROM msdb.dbo.sysssispackagefolders WHERE foldername=N'Maintenance Plans'),SUSER_SID(),0,1,0,0,NEWID() FROM OPENROWSET(BULK N'!REMOTE_FILE!', SINGLE_BLOB) AS x" -b >nul
-						echo Result: !errorlevel!
+						echo %DATE%,%TIME:~0,-3%: Result: !errorlevel!
 						ping -n 5 127.0.0.1 >nul 2>&1
 						del /f /q "\\%SQL_SERVER%\C$\Temp\%REMOTE_FILE_NAME%" >nul 2>&1
 					) else (
-						echo ERROR: Can't copy file to '\\%SQL_SERVER%\C$\Temp\%REMOTE_FILE_NAME%'
+						echo %DATE%,%TIME:~0,-3%: ERROR: Can't copy file to '\\%SQL_SERVER%\C$\Temp\%REMOTE_FILE_NAME%'
 					)
 				)
 			:writetoserverandimportend
@@ -338,7 +368,7 @@ goto :eof
 				set "EXISTS="
 				set "EXISTSSSISDTSID="
 				set "EXISTSPLANDTSID="
-				echo Cheking plan '%tempPlanName%' on '%SQL_SERVER%'
+				echo %DATE%,%TIME:~0,-3%: Cheking plan '%tempPlanName%' on '%SQL_SERVER%'
 				for /f "usebackq delims=" %%P in (`sqlcmd -S %SQL_SERVER% -E -d msdb -h -1 -Q "SET NOCOUNT ON; SELECT name FROM dbo.sysssispackages WHERE name='%tempPlanName%'" 2^>nul`) do set "EXISTS=%%~P"
 				if defined EXISTS call :trim_spaces "%EXISTS%" EXISTS
 				for /f "usebackq delims=" %%P in (`sqlcmd -S %SQL_SERVER% -E -d msdb -h -1 -Q "SET NOCOUNT ON; SELECT id FROM dbo.sysssispackages WHERE name='%tempPlanName%'" 2^>nul`) do set "EXISTSSSISDTSID=%%~P"
@@ -349,18 +379,16 @@ goto :eof
 				if defined EXISTS (
 					if /i "%tempPlanName%" == "%EXISTS%" (
 						if /i "%EXISTSSSISDTSID%" == "%EXISTSPLANDTSID%" (
-							echo SUCCESS: Import plan '%tempPlanName%': DTSID:[Source]: '%tempPlanDTSID%': DTSID:[dbo.sysssispackages]: '%EXISTSSSISDTSID%':  DTSID:[dbo.sysmaintplan_plans]: '%EXISTSPLANDTSID%'
+							echo %DATE%,%TIME:~0,-3%: SUCCESS: Import plan '%tempPlanName%': DTSID:[Source]: '%tempPlanDTSID%': DTSID:[dbo.sysssispackages]: '%EXISTSSSISDTSID%':  DTSID:[dbo.sysmaintplan_plans]: '%EXISTSPLANDTSID%'
 							set "planok=true"
 						) else (
-							echo.
-							echo.WARNING: Import plan '%tempPlanName%': DTSID:[Source]: '%tempPlanDTSID%': DTSID:[dbo.sysssispackages]: '%EXISTSSSISDTSID%':  DTSID:[dbo.sysmaintplan_plans]: '%EXISTSPLANDTSID%'
-							echo.Plan '%tempPlanName%' not correctly registered. Check SQL Server.
-							echo.
+							echo %DATE%,%TIME:~0,-3%: WARNING: Import plan '%tempPlanName%': DTSID:[Source]: '%tempPlanDTSID%': DTSID:[dbo.sysssispackages]: '%EXISTSSSISDTSID%':  DTSID:[dbo.sysmaintplan_plans]: '%EXISTSPLANDTSID%'
+							echo %DATE%,%TIME:~0,-3%: Plan '%tempPlanName%' not correctly registered. Check SQL Server.
 						)
 					)
 				)
 				if "!planok!" == "false" (
-					echo ERROR: Import plan '%tempPlanName%': DTSID[Source]: '%tempPlanDTSID%'
+					echo %DATE%,%TIME:~0,-3%: ERROR: Import plan '%tempPlanName%': DTSID[Source]: '%tempPlanDTSID%'
 				)
 			:checkimportedplanend
 
@@ -410,7 +438,7 @@ goto :eof
 		for /f "tokens=%token% delims=;" %%i in ("%subplansdescrs%") do set "curSubplanDescr=%%~i"
 		for /f "tokens=%token% delims=;" %%i in ("%subplanssids%") do set "curSubplanSid=%%~i"
 		if defined curSubplan (
-			echo Processing subplan: !token!: '!curSubplan!':'!curSubplanDescr!':'!curSubplanSid!'
+			echo %DATE%,%TIME:~0,-3%: Processing subplan: !token!: '!curSubplan!':'!curSubplanDescr!':'!curSubplanSid!'
 			call :ProcessingImportJobForSubPlan
 		) else (
 			goto :subplanscycleend
@@ -424,7 +452,7 @@ goto :eof
 :ImportSysOps
 	if "%ServerSysOperatorsProcessed%" == "true" goto :ImportSysOpsEnd
 	if exist "%IMPORT_DIR%\%SQL_SERVER%\SysOperators.sql" (
-		echo Processing sysoperators TSQL file: '%IMPORT_DIR%\%SQL_SERVER%\SysOperators.sql'
+		echo %DATE%,%TIME:~0,-3%: Processing sysoperators TSQL file: '%IMPORT_DIR%\%SQL_SERVER%\SysOperators.sql'
 		sqlcmd -S %SQL_SERVER% -E -d msdb -i "%IMPORT_DIR%\%SQL_SERVER%\SysOperators.sql" -b >nul
 		set "ServerSysOperatorsProcessed=true"
 	)
@@ -437,20 +465,20 @@ goto :eof
 	set "job_id="
 	set "schedule_id="
 
-	echo Processing jobs plan: '%tempPlanName%':'%tempPlanDTSID%': Subplan: '%curSubplan%':'%curSubplanDescr%':'%curSubplanSid%'
+	echo %DATE%,%TIME:~0,-3%: Processing jobs for plan: '%tempPlanName%':'%tempPlanDTSID%': Subplan: '%curSubplan%':'%curSubplanDescr%':'%curSubplanSid%'
 	set "exf=false"
 	if exist "%IMPORT_DIR%\%SQL_SERVER%\%tempPlanName%.%curSubplan%.sql" (
 		 set "exf=true"
 	) else (
-		echo Job TSQL file: '%IMPORT_DIR%\%SQL_SERVER%\%tempPlanName%.%curSubplan%.sql': Not Exist: Skip.
+		echo %DATE%,%TIME:~0,-3%: Job TSQL file: '%IMPORT_DIR%\%SQL_SERVER%\%tempPlanName%.%curSubplan%.sql': Not Exist: Skip.
 		goto :ProcessingImportJobForSubPlanEnd
 	)
-	echo Job TSQL file: '%IMPORT_DIR%\%SQL_SERVER%\%tempPlanName%.%curSubplan%.sql': Exist: '%exf%'
+	echo %DATE%,%TIME:~0,-3%: Job TSQL file: '%IMPORT_DIR%\%SQL_SERVER%\%tempPlanName%.%curSubplan%.sql': Exist: '%exf%'
 	sqlcmd -S %SQL_SERVER% -E -d msdb -v SRVR="%SQL_SERVER%" -i "%IMPORT_DIR%\%SQL_SERVER%\%tempPlanName%.%curSubplan%.sql" -b >nul
 	set "sqlerrlvl=%errorlevel%"
-	echo Job TSQL file: Import result: %sqlerrlvl%
+	echo %DATE%,%TIME:~0,-3%: Job TSQL file: Import result: %sqlerrlvl%
 	if not "%sqlerrlvl%" == "0" (
-		echo ERROR: Job TSQL file: Import. Skip processing subplan: '%curSubplan%':'%curSubplanSid%' link.
+		echo %DATE%,%TIME:~0,-3%: ERROR: Job TSQL file: Import. Skip processing subplan: '%curSubplan%':'%curSubplanSid%' link.
 		goto :ProcessingImportJobForSubPlanEnd
 	)
 
@@ -467,7 +495,7 @@ goto :eof
 		)
 	:setjobidend
 	if not defined job_id (
-		echo ERROR: Job '%tempPlanName%.%curSubplan%' not registered on SQL Server: %SQL_SERVER%. Skip processing subplan: '%curSubplan%':'%curSubplanSid%' link.
+		echo %DATE%,%TIME:~0,-3%: ERROR: Job '%tempPlanName%.%curSubplan%' not registered on SQL Server: %SQL_SERVER%. Skip processing subplan: '%curSubplan%':'%curSubplanSid%' link.
 		goto :ProcessingImportJobForSubPlanEnd
 	)
 	:setscheduleids
@@ -480,7 +508,7 @@ goto :eof
 		)
 	:setscheduleidsend
 	if not defined schedule_id (
-		echo ERROR: Job '%tempPlanName%.%curSubplan%' no Schedules for job registered on SQL Server: %SQL_SERVER%. Skip processing subplan: '%curSubplan%':'%curSubplanSid%' link.
+		echo %DATE%,%TIME:~0,-3%: ERROR: Job '%tempPlanName%.%curSubplan%' no Schedules for job registered on SQL Server: %SQL_SERVER%. Skip processing subplan: '%curSubplan%':'%curSubplanSid%' link.
 		goto :ProcessingImportJobForSubPlanEnd
 	)
 
@@ -492,12 +520,12 @@ goto :eof
 :LinkPlanSubplanShedule
 	::: subplan_id      subplan_name subplan_description plan_id	     job_id   schedule_id
 	::: %curSubplanSid% %curSubplan% %curSubplanDescr%   %tempPlanDTSID% %job_id% %schedule_id%
-	echo Linking: [msdb.dbo.sysmaintplan_subplans]: '%curSubplanSid%':'%curSubplan%':'%curSubplanDescr%':'%tempPlanDTSID%':'%job_id%':'%schedule_id%'
+	echo %DATE%,%TIME:~0,-3%: Linking: [msdb.dbo.sysmaintplan_subplans]: '%curSubplanSid%':'%curSubplan%':'%curSubplanDescr%':'%tempPlanDTSID%':'%job_id%':'%schedule_id%'
 	sqlcmd -S %SQL_SERVER% -E -d msdb -b -Q "SET NOCOUNT ON; IF NOT EXISTS (SELECT 1 FROM msdb.dbo.sysmaintplan_subplans WHERE subplan_id = '%curSubplanSid%' AND schedule_id = %schedule_id%) INSERT INTO msdb.dbo.sysmaintplan_subplans (subplan_id, subplan_name, subplan_description, plan_id, job_id, schedule_id) VALUES (N'%curSubplanSid%', N'%curSubplan%', N'%curSubplanDescr%', N'%tempPlanDTSID%', N'%job_id%', %schedule_id%);" -b >nul
 	if %errorlevel% == 0 (
-		echo Linking: Success.
+		echo %DATE%,%TIME:~0,-3%: Linking: Success.
 	) else (
-		echo Linking: Error.
+		echo %DATE%,%TIME:~0,-3%: Linking: Error.
 	)
 :LinkPlanSubplanSheduleEnd
 goto :eof
@@ -511,13 +539,19 @@ goto :eof
 		set "subplansdescrs="
 		set "subplanssids="
 		set "sLine="
-		echo GetSubPlans: Plan: '%planname%', DTSX: '%dtsxname%'
-		for /f "tokens=2 delims=<>" %%i in ('type "%dtsxname%" 2^>nul ^| find /i "DTS:Executable DTS:refId=" ^| find /i "Package\" ^| find /i "DTS:CreationName=" ^| find /i "DTS:Description=" ^| find /i "DTS:Disabled=" ^| find /i "DTS:DTSID=" ^| find /i "DTS:ExecutableType=" ^| find /i "DTS:FailParentOnFailure=" ^| find /i "DTS:LocaleID=" ^| find /i "DTS:ObjectName="') do (
-			set "sLine=%%~i"
-			if defined sLine call :GetSubplan !sLine!
-		)
+		echo %DATE%,%TIME:~0,-3%: GetSubPlans: Plan: '%planname%', DTSX: '%dtsxname%'
 
-		echo Plan: '%planname%': Subplans: '%subplans%': Sids: '%subplanssids%', Descrs: '%subplansdescrs%'
+		set /a "sbnum=0"
+		for /f "tokens=2 delims=<>" %%i in ('findstr /r /c:"<DTS:Executable .*DTS:refId=.*DTS:CreationName=.*DTS:Description=.*DTS:Disabled=.*DTS:DTSID=.*DTS:ExecutableType=.*DTS:FailParentOnFailure=.*DTS:LocaleID=.*DTS:ObjectName=.*>" "%dtsxname%"') do (
+			set "sLine=%%~i" >nul 2>&1
+			set /a "sbnum=!sbnum!+1"
+			if defined sLine (
+				echo %DATE%,%TIME:~0,-3%: Get SubPlans: Processing subplan [!sbnum!] 
+				call :GetSubplan !sLine!
+			)
+		)
+		:Proc_sLine_end
+		echo %DATE%,%TIME:~0,-3%: Plan: '%planname%': Subplans: '%subplans%': Sids: '%subplanssids%', Descrs: '%subplansdescrs%'
 
 	:GetSubPlansEnd
 	goto :eof
@@ -550,7 +584,9 @@ goto :eof
 		::echo %tmpline% >tmpline.txt
 		::echo %mainstring% >mainstring.txt
 		::goto :eof
-		
+
+		echo %DATE%,%TIME:~0,-3%: Get Subplan variables.
+
 		:parse_subplan_line
 			set "a="
 			set /a "token+=1"
@@ -573,10 +609,12 @@ goto :eof
 			)
 			goto :parse_subplan_line
 		:parse_subplan_line_end
+
+		echo %DATE%,%TIME:~0,-3%: Get Subplan variables end.
 		
 		if defined subplanpkg if defined subplandescr if defined subplansid if defined subplan (
 			if /i "%subplanpkg:package\=%" == "%subplan%" (
-				echo GetSubplan: '%subplanpkg%':'%subplandescr%':'%subplansid%':'%subplan%'
+				echo %DATE%,%TIME:~0,-3%:  GetSubplan: '%subplanpkg%':'%subplandescr%':'%subplansid%':'%subplan%'
 
 				if defined subplans (
 					set "subplans=!subplans!%subplan%;"
@@ -588,7 +626,7 @@ goto :eof
 					set "subplanssids=%subplansid%;"
 				)
 			) else (
-				echo WARNING: The subplan '%subplan%' may contain errors. Check plan '%planname%' and subplan configuration in SQL server.
+				echo %DATE%,%TIME:~0,-3%: WARNING: The subplan '%subplan%' may contain errors. Check plan '%planname%' and subplan configuration in SQL server.
 			)
 		)
 	:GetSubplanEnd
@@ -622,5 +660,7 @@ goto :eof
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 :exit
+@echo "%PS_TEMP%" | find /i "\%PSRND%" >nul 2>&1 && rd /s /q "%PS_TEMP%" >nul 2>&1
+@set "PS_TEMP=%TEMP%"
 @pause
 @endlocal && exit /b %errlvl%
