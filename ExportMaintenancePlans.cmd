@@ -9,7 +9,7 @@ setlocal enabledelayedexpansion
 	echo %DATE%,%TIME:~0,-3%: Export Maintenance plans from MS SQL Servers.
 	::: List of servers.
 	::set "SQL_SERVERS=1C-SRV01;"
-	set "SQL_SERVERS=SERV-1C8CA0;"
+	set "SQL_SERVERS=SERV-1C8CA0;SERV-1C82CA1;SERV-1C82CA2;"
 	set "OnePlan=%~1"
 	if "%OnePlan%" == "*" set "OnePlan="
 	rem set "OnePlan=EveryDay_Backup_Template"
@@ -332,11 +332,11 @@ exit /b %pwerrlvl%
 		set "xmltype="
 		set /a "xmltypenum=0"
 		findstr /c:"\<\?xml version=" "%dtsxname%" >nul 2>&1 && (
-			findstr /r /c:"<DTS:Executable .*DTS:refId=.*DTS:CreationName=.*DTS:DTSID=.*DTS:ExecutableType=.*DTS:ObjectName=.*DTS:PackageType=.*DTS:ProtectionLevel=.*>" "%dtsxname%" >nul 2>&1 && ( 
+			findstr /r /c:"<DTS:Executable .*DTS:refId=.*DTS:CreationName=.*DTS:DTSID=.*DTS:ExecutableType=.*DTS:ObjectName=.*DTS:PackageType=.*>" "%dtsxname%" >nul 2>&1 && ( 
 				set "xmltype=bcp"
 				set /a "xmltypenum+=1"
 			)
-			findstr /r /c:"<DTS:Executable .*DTS:refId=.*DTS:CreationName=.*DTS:Description=.*DTS:Disabled=.*DTS:DTSID=.*DTS:ExecutableType=.*DTS:FailParentOnFailure=.*DTS:LocaleID=.*DTS:ObjectName=.*>" "%dtsxname%" >nul 2>&1 && (
+			findstr /r /c:"<DTS:Executable .*DTS:refId=.*DTS:CreationName=.*DTS:Disabled=.*DTS:DTSID=.*DTS:ExecutableType=.*DTS:FailParentOnFailure=.*DTS:LocaleID=.*DTS:ObjectName=.*>" "%dtsxname%" >nul 2>&1 && (
 				set "xmltype=bcp"
 				set /a "xmltypenum+=1"
 			) || (

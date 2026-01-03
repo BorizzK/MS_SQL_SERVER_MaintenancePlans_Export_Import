@@ -591,18 +591,18 @@ goto :eof
 		set "xmltype="
 		set /a "xmltypenum=0"
 		findstr /c:"\<\?xml version=" "%dtsxname%" >nul 2>&1 && (
-			findstr /r /c:"<DTS:Executable .*DTS:refId=.*DTS:CreationName=.*DTS:DTSID=.*DTS:ExecutableType=.*DTS:ObjectName=.*DTS:PackageType=.*DTS:ProtectionLevel=.*>" "%dtsxname%" >nul 2>&1 && ( 
+			findstr /r /c:"<DTS:Executable .*DTS:refId=.*DTS:CreationName=.*DTS:DTSID=.*DTS:ExecutableType=.*DTS:ObjectName=.*DTS:PackageType=.*>" "%dtsxname%" >nul 2>&1 && ( 
 				set "xmltype=bcp"
 				set /a "xmltypenum+=1"
 			)
-			findstr /r /c:"<DTS:Executable .*DTS:refId=.*DTS:CreationName=.*DTS:Description=.*DTS:Disabled=.*DTS:DTSID=.*DTS:ExecutableType=.*DTS:FailParentOnFailure=.*DTS:LocaleID=.*DTS:ObjectName=.*>" "%dtsxname%" >nul 2>&1 && (
+			findstr /r /c:"<DTS:Executable .*DTS:refId=.*DTS:CreationName=.*DTS:Disabled=.*DTS:DTSID=.*DTS:ExecutableType=.*DTS:FailParentOnFailure=.*DTS:LocaleID=.*DTS:ObjectName=.*>" "%dtsxname%" >nul 2>&1 && (
 				set "xmltype=bcp"
 				set /a "xmltypenum+=1"
 			) || (
 				set "xmltype=dtutil"
 			)
 		)
-		
+
 		if "%xmltype%" == "bcp" (
 			echo %DATE%,%TIME:~0,-3%: Get SubPlans: Plan: '%planname%', DTSX: '%dtsxname%': Type: BCP: Type#: '%xmltypenum%'
 			goto :GetSubPlansBCPXML
@@ -611,7 +611,7 @@ goto :eof
 			echo %DATE%,%TIME:~0,-3%: Get SubPlans: Plan: '%planname%', DTSX: '%dtsxname%': Type: DTUTIL: Type#: '%xmltypenum%'
 			goto :GetSubPlansDTUTILXML
 		)
-		
+
 		echo %DATE%,%TIME:~0,-3%: No XML type defined. Skip Get Subplans configuration.
 		goto :GetSubPlansEnd
 
