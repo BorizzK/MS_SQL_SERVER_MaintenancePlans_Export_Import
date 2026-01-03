@@ -55,7 +55,7 @@ setlocal enabledelayedexpansion
 	set "PLAN_DTSID="
 	set "P_SQL_SERVER="
 	set /a "stoken=0"
-	set "IMPORTED_JOBS"
+	set "IMPORTED_JOBS="
 
 	if not defined TEMP set "TEMP=%SystemRoot%\Temp"
 	if not defined TMP  set "TMP=%SystemRoot%\Temp"
