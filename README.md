@@ -163,7 +163,6 @@ Because the scripts:
 
 ## Compatibility (Tested)
 
-|--------------------|-----------|
 | SQL Server Version | Supported |
 |--------------------|-----------|
 | 2012               | V         |
@@ -171,7 +170,6 @@ Because the scripts:
 | 2016               | V         |
 | 2017               | V         |
 | 2019               | V         |
-|--------------------|-----------|
 
 ---
 
